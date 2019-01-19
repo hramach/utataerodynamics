@@ -16,11 +16,10 @@ DeltaT = 0.1;           %Time increment after powered flight
 tsim = 1000;
 
 g = 9.80665;            %Gravitational constant
-A = 0.015;              %Frontal area
+A = 0.015;              %Frontal area; check if still accurate
 dryMass = 30.65;        %Changed from 13.9 based on mass budget, 2018-12-01
-payloadMass = mp;
-fullMass = mo + payloadMass + dryMass;
-gamma = 1.4;
+fullMass = mo + mp + dryMass;
+gamma = 1.4;            %Heat capacity ratio of air
 R = 287.0531;
 
 %Allocate arrays
@@ -36,14 +35,14 @@ Fd = zeros(1,tsim);     %drag force
 Cd = zeros(1,tsim);     %Drag coefficient
 
 Pitch = zeros(1,tsim);  %Pitch angle
-FPTheta = zeros(1,tsim);  %Flight path angle
+FPTheta = zeros(1,tsim);%Flight path angle
 Mass = zeros(1,tsim);   %Vehicle mass (kg)
 
-Inertia = zeros(1, tsim); %Moment of inertia (kg m^2)
-Cp = zeros(1, tsim);   %Center of pressure (m from tip)
-Cg = zeros(1, tsim);   %Center of gravity (m from tip)
+Inertia = zeros(1, tsim);%Moment of inertia (kg m^2)
+Cp = zeros(1, tsim);    %Center of pressure (m from tip)
+Cg = zeros(1, tsim);    %Center of gravity (m from tip)
 
-Moment = zeros(1, tsim); %Overall moment on rocket (N m)
+Moment = zeros(1, tsim);%Overall moment on rocket (N m)
 
 Ax = zeros(1,tsim);     %acceleration in x direction
 Ay = zeros(1,tsim);     %acceleration in y direction
@@ -66,7 +65,7 @@ Rho = zeros(1,tsim);    %Density
 
 %Initial Conditions
 engineMode = 1;         %Engine is initially ON
-Pitch(1) = 90 - Pitch0;
+Pitch(1) = Pitch0;
 FPTheta(1) = 90 - Pitch0;
 Vx(1) = 0;
 Vy(1) = 0;
@@ -95,14 +94,15 @@ for i = 2:(tb/DeltaT)+1
        % Cd(i-1) = rocketTrajectoryDragCoefficient(Mach(i-1));
        Fd(i) = 0.5*Cd(i-1)*Rho(i-1)*A*(Vx(i-1)^2+Vy(i-1)^2);
        Ft(i) = interp1(tq,fInterp,t(i),'pchip');
-       Fx(i) = Ft(i)*cosd(Pitch(i-1)) - Fd(i)*cosd(FPTheta(i-1)); 
+       Fx(i) = Ft(i)*cosd(FPTheta(i-1)) - Fd(i)*cosd(FPTheta(i-1)); 
        W(i) = Mass(i)*g;
-       Fy(i) = Ft(i)*sind(Pitch(i-1)) - Fd(i)*sind(FPTheta(i-1)) - W(i);
+       Fy(i) = Ft(i)*sind(FPTheta(i-1)) - Fd(i)*sind(FPTheta(i-1)) - W(i);
        
        %Moment Calculation
-       Cg(i-1) = rocketTrajectoryCenterGravity(Mach(i-1)) / 100;
+       burnedMass = fullMass - Mass(i);
+       Cg(i-1) = rocketTrajectoryCenterOfGravity(mf - burnedMass);
        Cp(i-1) = rocketTrajectoryCenterPressure(Mach(i-1)) / 100;
-       Inertia(i) = rocketTrajectoryMomentOfInertia(Cg(i-1), fullMass - Mass(i));
+       Inertia(i) = rocketTrajectoryMomentOfInertia(Cg(i-1), mf - burnedMass);
        Moment(i) = -Fd(i) * sind(Pitch(i-1) - FPTheta(i-1)) * (Cg(i-1) - Cp(i-1));
        
        if Fy(i) <= 0 && i < 10
@@ -137,7 +137,7 @@ iBurntOut = i;
 i = (tb/DeltaT)+1;
 engineMode = 0; %Engine turns off after burn
 
-while y(i) > 0.01
+while y(i) > y(i-1)
     i = i+1;
     Mass(i) =  Mass((tb/DeltaT)+1);
     t(i) = t(i-1)+ DeltaT;
@@ -154,15 +154,16 @@ while y(i) > 0.01
     % Cd(i-1) = rocketTrajectoryDragCoefficient(Mach(i-1));
     Fd(i) = 0.5*Cd(i-1)*Rho(i-1)*A*(Vx(i-1)^2+Vy(i-1)^2);
     Ft(i) = interp1(tq,fInterp,t(i),'pchip');
-    Fx(i) = Ft(i)*cosd(Pitch(i-1)) - Fd(i)*cosd(FPTheta(i-1)); 
+    Fx(i) = Ft(i)*cosd(FPTheta(i-1)) - Fd(i)*cosd(FPTheta(i-1)); 
     W(i) = Mass(i)*g;
-    Fy(i) = Ft(i)*sind(Pitch(i-1)) - Fd(i)*sind(FPTheta(i-1)) - W(i);
+    Fy(i) = Ft(i)*sind(FPTheta(i-1)) - Fd(i)*sind(FPTheta(i-1)) - W(i);
     
     %Moment Calculation
-    Cg(i-1) = rocketTrajectoryCenterGravity(fullMass - Mass(i));
+    burnedMass = fullMass - Mass(i);
+    Cg(i-1) = rocketTrajectoryCenterOfGravity(mf - burnedMass);
     Cp(i-1) = rocketTrajectoryCenterPressure(Mach(i-1)) / 100;
-    Inertia(i) = rocketTrajectoryMomentOfInertia(Cg(i-1), fullMass - Mass(i));
-    Moment(i) = -Fd(i) * (Cg(i-1) - Cp(i-1));
+    Inertia(i) = rocketTrajectoryMomentOfInertia(Cg(i-1), mf - burnedMass);
+    Moment(i) = -Fd(i) * sind(Pitch(i-1) - FPTheta(i-1)) * (Cg(i-1) - Cp(i-1));
     
     %Acceleration Calculation
     Ax(i) = Fx(i)/Mass(i);
@@ -302,23 +303,23 @@ title({'Pitch Angle'});
 
 %Figure 12
 subplot(3,5,12)
-plot(t(1:i), Mass(1:i),'linewidth', 2);
+plot(t(1:i), Inertia(1:i),'linewidth', 2);
 hold on;
-plot(t(iBurntOut), Mass(iBurntOut), 'r*');
+plot(t(iBurntOut), Inertia(iBurntOut), 'r*');
 grid on
 xlabel({'Time (s)'});
-ylabel({'Mass (kg)'});
-title({'Mass'});
+ylabel({'Moment of Inertia (kg * m^2)'});
+title({'Moment of Inertia'});
 
 %Figure 13
 subplot(3,5,13)
-plot(t(1:i), Cp(1:i) - Cg(1:i),'linewidth', 2);
+plot(t(1:i), Moment(1:i),'linewidth', 2);
 hold on;
-plot(t(iBurntOut), Cp(iBurntOut) - Cg(iBurntOut), 'r*');
+plot(t(iBurntOut), Moment(iBurntOut), 'r*');
 grid on
 xlabel({'Time (s)'});
-ylabel({'Static Margin (m)'});
-title({'Static Margin'});
+ylabel({'Moment (m)'});
+title({'Moment'});
 
 %Figure 14
 subplot(3,5,14)
@@ -329,4 +330,14 @@ grid on
 xlabel({'Time (s)'});
 ylabel({'Center of Gravity (m)'});
 title({'Center of Gravity'});
+
+%Figure 15
+subplot(3,5,15)
+plot(t(1:i), Cp(1:i),'linewidth', 2);
+hold on;
+plot(t(iBurntOut), Cp(iBurntOut), 'r*');
+grid on
+xlabel({'Time (s)'});
+ylabel({'Center of Pressure (m)'});
+title({'Center of Pressure'});
 end

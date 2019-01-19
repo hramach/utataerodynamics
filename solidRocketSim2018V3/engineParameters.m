@@ -62,7 +62,7 @@ elseif engine == 'N2500'
         4.5 4.6 4.75 5 5.41 5.42; 0 773.7 3356.6 3657.8 3546.8 3403.8 ...
         3309.2 3262.5 3206.1 3088.5 2940.4 2792.6 2598.4 2402.5 2227 ...
         2152.5 2102.5 2007 1683.8 1269.5 767.3 341.3 0];
-elseif engine == 'N1800'
+elseif engine == 'N1800' % 
     mo = 9.180;         %Initial mass (kg) (incl. propellant)
     mf = 5.727;         %Propellant mass (kg)
     tb = 5.9;           %Burn time (s)
